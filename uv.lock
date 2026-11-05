@@ -2514,6 +2514,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "geopandas" },
+    { name = "mobisurvstd" },
     { name = "polars" },
     { name = "pymetropolis" },
 ]
@@ -2521,6 +2522,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "geopandas", specifier = ">=1.2.0" },
+    { name = "mobisurvstd", specifier = ">=1.6.0" },
     { name = "polars", specifier = ">=2.1.0" },
     { name = "pymetropolis", git = "https://github.com/Metropolis2/pymetropolis?branch=main" },
 ]
