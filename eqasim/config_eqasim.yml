@@ -1,0 +1,52 @@
+## Synthetic population pipeline for Toulouse with METROPOLIS2.
+
+# This is the path to a directory where the pipeline can store temporary data.
+working_directory: cache
+
+run:
+  - synthesis.output
+
+config:
+  # Some general configuration.
+  processes: 12
+
+  regions: []
+  # Départements of Toulouse' Aire d'attraction.
+  departments: ["09", "11", "31", "32", "81", "82"]
+
+  hts: mobisurvstd
+  # Keep only households in the requested départements.
+  filter_hts: true
+  use_urban_type: true
+  # Exclude SIRET with no employee.
+  exclude_no_employee: true
+  matching_attributes: ["professional_activity", "urban_type", "*default*"]
+  # Use activity purposes for METROPOLIS2.
+  activity_purposes: ["leisure", "shop", "task", "escort"]
+
+  # Add attributes from MobiSurvStd to the synthetic persons.
+  extra_enriched_attributes:
+    - "education_level"
+    - "detailed_education_level"
+    - "work_only_at_home"
+    - "telework"
+    - "work_car_parking"
+    - "work_bicycle_parking"
+
+  # Define sampling rate and random seed for the output population.
+  sampling_rate: 1.0
+  random_seed: 1234321
+
+  # Paths to the input data and where the output should be stored.
+  data_path: my_data/
+  output_path: toulouse_output/
+  output_prefix: toulouse_
+  output_formats:
+    - "parquet"
+    - "geoparquet"
+
+  # Specific data path.
+  bdtopo_path: bdtopo_toulouse
+  ban_path: ban_toulouse
+  mobisurvstd:
+    path: emc2_toulouse.zip
