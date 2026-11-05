@@ -1,4 +1,4 @@
-main_directory = "../output/synpop"
+main_directory = "output-synpop"
 
 crs = "epsg:2154"
 
@@ -17,7 +17,7 @@ path = "../data/emc2-2023.zip"
 restrict_to_simulation_area = true
 
 [synthetic_population]
-eqasim_output = "../data/output_eqasim/"
+eqasim_output = "../eqasim/output/"
 fraction = 1.0
 
 [population_characteristics]
