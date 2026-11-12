@@ -1,0 +1,73 @@
+# All paths are considered relative from the parent folder of this file
+
+random_seed = 123454321
+
+main_directory = "../output/nice/"
+crs = "EPSG:2154"
+osm_file = "../data/osm/provence-alpes-cote-d-azur-261111.osm.pbf"
+
+main_population = true
+simulation_ratio = 1.0
+
+[departure_time]
+[departure_time.linear_schedule]
+# TODO are they part of the synthetic population.
+
+[departure_time_choice]
+model = "ContinuousLogit"
+mu = # TODO
+
+
+[simulation_area]
+polygon_file = # TODO
+simulation_area.buffer = 15000
+
+[osm_road_import]
+highways = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+  "primary",
+  "primary_link",
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  "living_street",
+  "unclassified",
+  "residential",
+]
+
+[bicycle_network]
+ensure_connected = true
+forbidden_types = [
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+]
+remove_duplicates = true
+output_path = true # TODO why not automatic?
+
+
+[osm_urban_areas]
+urban_landuse = [
+  "commercial",
+  "construction",
+  "education",
+  "industrial",
+  "residential",
+  "retail",
+  "village_green",
+  "recreation_ground",
+  "garages",
+  "religious",
+]
+buffer = 50
+
+# create gtfs
+#
+# Values of time ?
