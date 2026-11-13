@@ -6,8 +6,32 @@ main_directory = "../output/nice/"
 crs = "EPSG:2154"
 osm_file = "../data/osm/provence-alpes-cote-d-azur-261111.osm.pbf"
 
-main_population = true
-simulation_ratio = 1.0
+main_population = true # What is this? TODO
+simulation_ratio = 1.0 # this is the overall ratio of population for each car
+
+
+# Technical paramaters
+[metropolis_core]
+exec_path = "../execs/metropolis_cli"
+routing_exec_path = "../execs/routing_cli"
+
+[simulation]
+learning_model = "ExponentialThenExponential"
+nb_exponential_iterations = 50
+nb_iterations = 200
+learning_factor = 0.1
+final_learning_factor = 0.05
+ex_ante_nb_iteration = 0
+period = [03:00:00, 27:00:00]
+recording_interval = [03:00:00, 27:00:00]
+routing_algorithm = "Best"
+spillback = true
+
+
+# Synthetic population and demand parameters.
+[synthetic_population]
+eqasim_output = #TODO
+fraction = 1.0 # this is the ratio of the synthetic population being simulated. If the synthetic population is already a downscaling of the real population, thenthe overall ration must be lower.
 
 [departure_time]
 [departure_time.linear_schedule]
@@ -17,7 +41,55 @@ simulation_ratio = 1.0
 model = "ContinuousLogit"
 mu = # TODO
 
+# fuel price? TODO
 
+[mode_availability]
+no_solo_modes_for_joint_tours = true
+
+[mode_availability.bicycle]
+# no max distance
+requires_bicycle = true
+
+[mode_availability.car_driver]
+min_age = 18
+requires_car = true
+requires_driving_license = true
+
+[mode_availability.car_passenger]
+requires_car = true
+
+[mode_choice]
+model = "Logit"
+modes = ["car_driver", "car_passenger", "car_ridesharing", "public_transit", "bicycle", "walking"]
+
+[mode_choice_estimation]
+reference_mode = "car_driver"
+
+[modes]
+[modes.bicyle]
+snap_speed = 12
+speed = 15
+
+[modes.bicyle.distance]
+type = "pedestrian"
+with_snap = true
+
+[modes.walking]
+speed = 4.5
+[modes.walking.distance]
+with_snap = true
+type = "pedestrian"
+
+[vehicle_types]
+[vehicle_types.car]
+headway = 9
+pce = 1
+ridesharing_passenger_count = 1.2
+
+# [vehicle_types.truck] No truck
+
+
+# Location of simulation
 [simulation_area]
 polygon_file = # TODO
 simulation_area.buffer = 15000
@@ -37,7 +109,45 @@ highways = [
   "living_street",
   "unclassified",
   "residential",
+  "living_street",
+  "road",
+  "pedestrian", # can be of type area instead of linestring
+  "track",
+  "footway", # can be of type area instead of linestring
+  "steps",
+  "path",
+  "cycleway"
 ]
+
+
+[road_network]
+ensure_connected = true
+ensure_primary_connected = false
+forbidden_types = [
+    "pedestrian",
+    "track",
+    "footway",
+    "steps",
+    "path",
+    "cycleway",
+]
+
+[road_network.default_lanes]
+[road_network.default_lanes.urban]
+motorway = 2
+road = 1
+[road_network.default_lanes.rural]
+motorway = 2
+road = 1
+
+[road_network.default_speed_limit]
+[road_network.default_speed_limit.urban]
+motorway = 110
+road = 50
+[road_network.default_speed_limit.rural]
+motorway = 110
+road = 80
+
 
 [bicycle_network]
 ensure_connected = true
@@ -48,12 +158,28 @@ forbidden_types = [
     "trunk_link",
     "primary",
     "primary_link",
+    "steps",
+    "tracks"
 ]
-remove_duplicates = true
 output_path = true # TODO why not automatic?
 
 
-[osm_urban_areas]
+[pedestrian_network]
+ensure_connected = false
+forbidden_types = [
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "secondary",
+    "secondary_link",
+]
+output_path = true
+
+
+[osm_urban_areas] # TODO what is the usage of that?
 urban_landuse = [
   "commercial",
   "construction",
@@ -68,6 +194,13 @@ urban_landuse = [
 ]
 buffer = 50
 
-# create gtfs
-#
-# Values of time ?
+
+[plots]
+# please don’t add the latex keyword, or i will have to run in toolbox, which i don’t want to.
+format = "png"
+
+
+
+# what are calibration parameters ? TODO
+
+# create gtfs TODO
