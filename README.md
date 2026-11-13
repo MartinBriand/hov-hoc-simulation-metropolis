@@ -26,6 +26,7 @@ Then, you must precede all Python commands by a `uv run` (see `uv` documentation
   - `config_eqasim.yml`: Eqasim configuration used to generate the synthetic population
 - `output/`: Output files, excluding the Eqasim and Pymetropolis output.
 - `pymetropolis/`: Configurations and output directories of the Pymetropolis runs.
+- `python/`: Various Python scripts.
 - `scripts/`: Unix commands to run various processing steps.
 
 ## Replicating the complete results
@@ -45,3 +46,5 @@ The Eqasim configuration used to generate the synthetic population is available 
   and household travel survey and store their characteristics. There is no road network or
   Metropolis simulation. The characteristics files can be compared with
   `docs/input/synpop_survey_comparison.typ`.
+- `python/analyse_survey.py`: Python script to print descriptive statistics on ridesharing and
+  intermodality from the input household travel survey.
