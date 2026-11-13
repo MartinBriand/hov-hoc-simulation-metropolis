@@ -1,0 +1,39 @@
+main_directory = "output-synpop"
+
+crs = "epsg:2154"
+
+random_seed = 123454321
+
+[simulation_area]
+aav_name = "Toulouse"
+
+[zones]
+france = true
+
+[survey]
+[survey.mobisurvstd]
+path = "../data/emc2-2023.zip"
+[survey.characteristics]
+restrict_to_simulation_area = true
+
+[synthetic_population]
+eqasim_output = "../eqasim/output/"
+fraction = 1.0
+
+[population_characteristics]
+restrict_to_survey_area = true
+
+[plots]
+width = "469.75pt"
+latex = true
+font = "serif"
+fontsize = 10
+format = "pdf"
+colors = "Set2"
+[plots.mode_colors]
+car_driver = "#0072B2"
+car_driver_with_passengers = "#CC79A7"
+car_passenger = "#D55E00"
+public_transit = "#E69F00"
+walking = "#009E73"
+bicycle = "#56B4E9"

@@ -1,0 +1,5 @@
+data/
+output/
+pymetropolis/output-*/
+eqasim/output/
+docs/**/*.pdf
