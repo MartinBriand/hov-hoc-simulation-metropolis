@@ -203,4 +203,7 @@ format = "png"
 
 # what are calibration parameters ? TODO
 
-# create gtfs TODO
+# create gtfs
+[gtfs]
+date = 20261208
+files = "../data/gtfs/merge_output/nice_area.zip"
