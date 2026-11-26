@@ -48,3 +48,6 @@ The Eqasim configuration used to generate the synthetic population is available 
   `docs/input/synpop_survey_comparison.typ`.
 - `python/analyse_survey.py`: Python script to print descriptive statistics on ridesharing and
   intermodality from the input household travel survey.
+- `python/compare_population.py`: Python script to compare population counts (households, persons,
+  trips) between the survey and the synthetic population, with splits by region (Alpes-Maritimes,
+  Var, Monaco).
