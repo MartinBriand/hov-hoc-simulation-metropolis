@@ -1,5 +1,12 @@
 """Unify the GTFS feeds of the Nice study area into one single GTFS feed.
 
+Scope: this script is written for the specific GTFS feeds documented in the README
+(the eight transport.data.gouv.fr downloads of November 13, 2026). Some rules are
+heuristic and calibrated on this data only: demand-responsive routes are
+identified by the "PAD" name prefix of Palmbus. If other feeds are used (other
+networks or other download dates), review `FEEDS` and `is_demand_route`
+before trusting the output.
+
 Usage:
     uv run python python/merge_gtfs_nice.py --start-date YYYYMMDD --end-date YYYYMMDD
     uv run python python/merge_gtfs_nice.py [--input-dir data/gtfs]
@@ -25,15 +32,16 @@ Steps:
        not run inside the window are removed,
      - only scheduled trains and buses are kept (tram, train, bus, trolleybus
        route types): demand-responsive routes (e.g. Palmbus 'Palm à la
-       demande') and other vehicle modes are removed,
+       demande') and other vehicle modes are removed, and vendor route
+       types are normalized (Lignes d'Azur scheduled village coach lines
+       to bus, Transdev trains to train),
      - routes without trips are removed, as well as agencies without routes,
-     - school services are removed from the Sillages feed (see
-     `is_school_service`; urban services are kept),
-     - `zou_train_transdev.zip` is ignored if present: its single route
-       (SUD_IV15, Nice - Marseille) is already contained in
-       `GTFS_SIBR_zou_ferre_datasud.zip`,
+     - `GTFS_SIBR_zou_ferre_datasud.zip` is ignored if present: every journey
+       of the ZOU Trains feed is already contained in a merged feed (all TER
+       journeys in the ZOU Express feed, the intercity Nice - Marseille line
+       in `zou_train_transdev.zip`),
      - trips exported identically by several feeds (the ZOU Express feed
-       re-exports the rail journeys of the ZOU Trains feed) are deduplicated:
+       re-exports the Transdev intercity journeys) are deduplicated:
        the first feed in FEEDS order keeps them,
      - non-standard / per-network files (fares, booking rules, private
        extensions) are dropped and reported,
@@ -44,7 +52,6 @@ import argparse
 import csv
 import io
 import re
-import sys
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -70,7 +77,7 @@ MERGED_TABLES = [
     "attributions.txt",
 ]
 
-# Per-feed processing order: trips first, so that school / mode / window
+# Per-feed processing order: trips first, so that mode / window
 # filtering and the sets of kept trips / routes / services are known before
 # the tables that reference them are written.
 PROCESS_ORDER = [
@@ -116,11 +123,12 @@ WEEKDAY_COLUMNS = ["monday", "tuesday", "wednesday", "thursday", "friday", "satu
 # services, ...) is removed.
 KEPT_ROUTE_TYPES = {"0", "2", "3", "8"}
 
-# Vendor route types that actually are scheduled bus / coach lines in the
-# source feeds, normalized to the GTFS bus type: 715 is used by Lignes d'Azur
-# for its scheduled village coach lines (C3x-C4x) in the Tinée and Var
-# valleys.
-NORMALIZED_ROUTE_TYPES = {"715": "3"}
+# Vendor route types that actually are scheduled train / bus / coach lines in
+# the source feeds, normalized to the GTFS base types: 715 is used by Lignes
+# d'Azur for its scheduled village coach lines (C3x-C4x) in the Tinée and Var
+# valleys, 100 ("Railway Service") by the Transdev feed for the intercity
+# Nice - Marseille line.
+NORMALIZED_ROUTE_TYPES = {"715": "3", "100": "2"}
 
 
 @dataclass(frozen=True)
@@ -133,49 +141,39 @@ class FeedSpec:
 
 
 # The feeds to merge. The order matters for cross-feed deduplication of trips
-# (see `merge`): the ZOU Trains feed comes first because the ZOU Express feed
-# re-exports the same regional rail and intercity journeys (same underlying
-# trip ids, same itineraries).
+# (see `merge`): the Transdev feed comes first so that its Nice - Marseille
+# intercity journeys win over the copies re-exported by the ZOU Express feed.
 FEEDS = [
-    FeedSpec("GTFS_SIBR_zou_ferre_datasud.zip", "zou_train", "Region, rail (Zou)"),
+    FeedSpec("zou_train_transdev.zip", "zou_transdev", "Region, rail (Zou)"),
     FeedSpec("GTFS_sibr_production_zou_proximite.zip", "zou_prox", "Region, prox (Zou)"),
     FeedSpec("GTFS_sibr_production_zou_express.zip", "zou_exp", "Region, express (Zou)"),
     FeedSpec("nice_lignes_dazur.zip", "dazur", "Nice, urban"),
     FeedSpec("envibus.zip", "envibus", "Antibes, local"),
     FeedSpec("palmbus-cannes-fr.zip", "palmbus", "Cannes, local"),
-    FeedSpec("urbain_et_scolaire_sillages.zip", "sillages", "Grasse, local"),
+    FeedSpec("urbain_sillages.zip", "sillages", "Grasse, local"),
     FeedSpec("zest.zip", "zest", "Menton, local"),
 ]
 
-# Present but not merged, on purpose: the single Transdev Rail route (SUD_IV15,
-# Nice - Marseille) is already contained in GTFS_SIBR_zou_ferre_datasud.zip, so
-# using both would double count it.
-IGNORED_ZIPS = {"zou_train_transdev.zip"}
-
-SILLAGES_PREFIX = "sillages"
-
-
-def is_school_service(service_id: str) -> bool:
-    """Tell a Sillages school service from an urban one.
-
-    Sillages encodes the service patterns in the service ids: `COMP_*` are
-    all-year commercial (urban) services, `PVS_*` are the school-holiday
-    variants of urban lines, and `SCO_*` are school-term services (also
-    appearing inside combined ids such as `+COMP_Sam+PVS_LMmJV+SCO_Mer`).
-    Only the school ones are removed.
-    """
-    return "SCO" in service_id
+# Present but not merged, on purpose: every journey of the ZOU Trains feed is
+# already contained in another merged feed (all TER journeys in the ZOU
+# Express feed, the intercity Nice - Marseille line in zou_train_transdev.zip),
+# so using it would double count them.
+IGNORED_ZIPS = {
+    "GTFS_SIBR_zou_ferre_datasud.zip": "journeys already contained in the ZOU Express and Transdev feeds",
+}
 
 
 def journey_key(trip_id: str) -> str:
     """Export-normalized journey id of a trip.
 
-    SNCF service-journey ids carry a trailing export-batch counter
-    (`SNC:FR:ServiceJourney::SN879387FERRE_13306141`), so the same physical
-    journey appears with different raw ids in the ZOU feeds. Strip the
-    counter to make the ids comparable across feeds.
+    The ZOU exports differ in two ways: SNCF service-journey ids carry a
+    trailing export-batch counter (`SNC:FR:ServiceJourney::SN879387FERRE_13306141`),
+    and the Transdev feed writes the intercity journey ids without the `MCN:`
+    producer prefix that the ZOU Express feed uses (`17466@2026-12-07` vs
+    `MCN:17466@2026-12-07`). Strip both to make the ids comparable across
+    feeds.
     """
-    return re.sub(r"_[0-9]+$", "", trip_id)
+    return re.sub(r"_[0-9]+$", "", re.sub(r"^MCN:", "", trip_id))
 
 
 def is_demand_route(short_name: str, long_name: str) -> bool:
@@ -286,8 +284,8 @@ def service_dates_in_window(
     return active
 
 
-def check_zip_names(input_dir: Path) -> int:
-    """Step 1: check the names of the expected zips. Returns 0 iff complete."""
+def check_zip_names(input_dir: Path) -> None:
+    """Step 1: check the names of the expected zips (exit 1 if any is missing)."""
     expected = [f.zip_name for f in FEEDS]
     missing = [name for name in expected if not (input_dir / name).is_file()]
 
@@ -299,14 +297,12 @@ def check_zip_names(input_dir: Path) -> int:
         )
     for path in sorted(input_dir.glob("*.zip")):
         if path.name in IGNORED_ZIPS:
-            print(f"  [x] {path.name}: ignored (already in GTFS_SIBR_zou_ferre_datasud.zip)")
+            print(f"  [x] {path.name}: ignored ({IGNORED_ZIPS[path.name]})")
         elif path.name not in expected:
             print(f"  [?] {path.name}: unexpected zip file, ignored.")
 
     if missing:
-        print("Missing GTFS files: " + ", ".join(missing), file=sys.stderr)
-        return 1
-    return 0
+        raise SystemExit("Missing GTFS files: " + ", ".join(missing))
 
 
 def report_date_windows(input_dir: Path) -> dict[str, tuple[str, str]]:
@@ -330,31 +326,24 @@ def report_date_windows(input_dir: Path) -> dict[str, tuple[str, str]]:
     return windows
 
 
-def validate_window(windows: dict[str, tuple[str, str]], start: str, end: str) -> tuple[date, date] | None:
-    """Return the requested window as a date pair, or None if invalid.
-
-    Prints an explanation and the accepted range when the selection is bad.
-    """
+def validate_window(windows: dict[str, tuple[str, str]], start: str, end: str) -> tuple[date, date]:
+    """Return the requested window as a date pair (exit 1 if invalid)."""
     try:
         start_day = parse_date(start)
         end_day = parse_date(end)
     except ValueError:
-        print(f"Bad selection: dates must be YYYYMMDD (got {start}, {end}).", file=sys.stderr)
-        return None
+        raise SystemExit(f"Bad selection: dates must be YYYYMMDD (got {start}, {end}).")
     if end_day < start_day:
-        print(f"Bad selection: end date {end} is before start date {start}.", file=sys.stderr)
-        return None
+        raise SystemExit(f"Bad selection: end date {end} is before start date {start}.")
 
     allowed_start = parse_date(max(w[0] for w in windows.values()))
     allowed_end = parse_date(min(w[1] for w in windows.values()))
     if not allowed_start <= start_day <= end_day <= allowed_end:
-        print(
+        raise SystemExit(
             f"Bad selection: {start} -> {end} is not contained in the intersection "
             f"{allowed_start.strftime('%Y%m%d')} -> {allowed_end.strftime('%Y%m%d')} "
-            "(see the windows printed above).",
-            file=sys.stderr,
+            "(see the windows printed above)."
         )
-        return None
     return start_day, end_day
 
 
@@ -409,8 +398,8 @@ def merge(
         # Pre-pass: map every journey (normalized trip id, see `journey_key`)
         # to the first feed in FEEDS order that contains it. When several
         # regional feeds export the same physical journey (e.g. ZOU Express
-        # re-exports the rail journeys of ZOU Trains), only the first feed
-        # keeps it.
+        # re-exports the intercity journeys of the Transdev feed), only the
+        # first feed keeps it.
         trip_owner: dict[str, str] = {}
         for spec in FEEDS:
             with zipfile.ZipFile(input_dir / spec.zip_name) as zf:
@@ -490,7 +479,6 @@ def merge(
                 kept_trips: set[str] = set()
                 kept_routes: set[str] = set()
                 kept_services: set[str] = set()
-                n_dropped_school = 0
                 n_dropped_mode = 0
                 n_dropped_window = 0
                 n_dropped_duplicate = 0
@@ -505,8 +493,8 @@ def merge(
                     header, rows = table
                     id_columns = ID_COLUMNS.get(name, set())
 
-                    # School filtering (Sillages), mode filtering, window
-                    # filtering and cross-feed deduplication (trips).
+                    # Mode filtering, window filtering and cross-feed
+                    # deduplication (trips).
                     if name == "trips.txt":
                         service_index = header.index("service_id")
                         trip_index = header.index("trip_id")
@@ -514,9 +502,7 @@ def merge(
                         headsign_index = header.index("trip_headsign") if "trip_headsign" in header else None
                         kept_rows = []
                         for row in rows:
-                            if spec.prefix == SILLAGES_PREFIX and is_school_service(row[service_index]):
-                                n_dropped_school += 1
-                            elif row[route_index] in dropped_mode_routes:
+                            if row[route_index] in dropped_mode_routes:
                                 n_dropped_mode += 1
                             elif not active.get(row[service_index]):
                                 n_dropped_window += 1
@@ -625,8 +611,6 @@ def merge(
                     tables[name].write_rows(header, renamed)
 
                 parts = []
-                if n_dropped_school:
-                    parts.append(f"{n_dropped_school} school trips removed")
                 if n_dropped_mode:
                     parts.append(f"{n_dropped_mode} demand-mode trips removed")
                 if n_dropped_window:
@@ -643,7 +627,7 @@ def merge(
                     route_parts.append(f"{n_routes_dropped_tripless} trip-less routes removed")
                 if route_parts:
                     print(f"  routes: {len(kept_routes)} kept (" + ", ".join(route_parts) + ")")
-                stats.append((spec.zip_name, len(kept_trips), n_dropped_school, n_dropped_mode, n_dropped_window, n_dropped_duplicate, n_dropped_physical))
+                stats.append((spec.zip_name, len(kept_trips), n_dropped_mode, n_dropped_window, n_dropped_duplicate, n_dropped_physical))
 
         with (tmp_dir / "feed_info.txt").open("w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, lineterminator="\n")
@@ -670,10 +654,8 @@ def merge(
                 zf.write(path, path.name)
 
     print(f"\nMerged {len(FEEDS)} feeds into {output} (window {win_start} -> {win_end})")
-    for zip_name, n_kept, n_school, n_mode, n_window, n_duplicate, n_physical in stats:
+    for zip_name, n_kept, n_mode, n_window, n_duplicate, n_physical in stats:
         parts = []
-        if n_school:
-            parts.append(f"{n_school} school removed")
         if n_mode:
             parts.append(f"{n_mode} demand-mode removed")
         if n_window:
@@ -685,7 +667,7 @@ def merge(
         print(f"  {zip_name:<45} {n_kept} trips" + (" (" + ", ".join(parts) + ")" if parts else ""))
 
 
-def main() -> int:
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -693,9 +675,7 @@ def main() -> int:
     parser.add_argument("--end-date", help="last day of the time window, YYYYMMDD")
     args = parser.parse_args()
 
-    if check_zip_names(args.input_dir) != 0:
-        return 1
-
+    check_zip_names(args.input_dir)
     windows = report_date_windows(args.input_dir)
 
     if not args.start_date or not args.end_date:
@@ -703,15 +683,11 @@ def main() -> int:
             "\nStopped before merging: no time window selected. Re-run with "
             "--start-date YYYYMMDD --end-date YYYYMMDD inside the intersection above."
         )
-        return 2
+        raise SystemExit(2)
 
-    window = validate_window(windows, args.start_date, args.end_date)
-    if window is None:
-        return 1
-
-    merge(args.input_dir, args.output, window[0], window[1])
-    return 0
+    start_day, end_day = validate_window(windows, args.start_date, args.end_date)
+    merge(args.input_dir, args.output, start_day, end_day)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
