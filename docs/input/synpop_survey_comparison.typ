@@ -3,8 +3,8 @@
 // The data is outside of this directory, so compile from the root of the repository with:
 //   typst compile --root . docs/input/synpop_survey_comparison.typ
 
-#let survey = json("../../output/synpop/calibration/survey/characteristics.json")
-#let synpop = json("../../output/synpop/demand/population/characteristics.json")
+#let survey = json("../../pymetropolis/output-synpop/calibration/survey/characteristics.json")
+#let synpop = json("../../pymetropolis/output-synpop/demand/population/characteristics.json")
 
 // ---------- Number formatting ----------
 
@@ -208,7 +208,7 @@ Survey values are weighted to represent the whole population, from a sample of
 #thousands(survey.trips.sample_count) trips.
 The survey is restricted to the households living in the simulation area and the synthetic
 population is restricted to the households living in the survey area.
-The survey area (Toulouse's urban area) is slightly smaller than the synthetic population area (Toulouse' functional area).
+The survey area is slightly larger than the synthetic population area: it includes Monaco and a part of Var, while the synthetic population only covers the Alpes-Maritimes département.
 
 Differences are synthetic population minus survey: relative differences (%) for quantities, percentage
 points (pp) for shares and minutes for times of day. Shares of a category exclude missing values.
