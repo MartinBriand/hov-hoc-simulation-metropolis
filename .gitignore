@@ -3,3 +3,4 @@ output/
 pymetropolis/output-*/
 eqasim/output/
 docs/**/*.pdf
+python/__pycache__/
