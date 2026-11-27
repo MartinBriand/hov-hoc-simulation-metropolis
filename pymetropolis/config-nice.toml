@@ -1,0 +1,200 @@
+# All paths are considered relative from the parent folder of this file
+
+# TODO remove carpooling for the moment
+
+random_seed = 123454321
+
+main_directory = "../output/nice/"
+crs = "EPSG:2154"
+osm_file = "../data/osm/provence-alpes-cote-d-azur-261111.osm.pbf"
+
+main_population = true # Population is not defined in other files but in this file
+simulation_ratio = 1.0 # this is the overall ratio of population for each car
+
+
+# Technical paramaters
+[metropolis_core]
+exec_path = "../execs/metropolis_cli"
+routing_exec_path = "../execs/routing_cli"
+
+[simulation]
+learning_model = "ExponentialThenExponential"
+nb_exponential_iterations = 10
+nb_iterations = 200
+learning_factor = 0.5
+final_learning_factor = 0.02
+period = ["03:00:00", "27:00:00"]
+recording_interval = 900
+routing_algorithm = "Best"
+spillback = true
+max_pending_duration = 30 # max time waiting before entering a link.
+
+
+# Synthetic population and demand parameters.
+[synthetic_population]
+eqasim_output = #TODO
+fraction = 1.0 # this is the ratio of the synthetic population being simulated. If the synthetic population is already a downscaling of the real population, thenthe overall ration must be lower.
+
+[departure_time]
+[departure_time.linear_schedule]
+# TODO are they part of the synthetic population.
+
+[departure_time_choice]
+model = "ContinuousLogit"
+mu = # TODO
+
+[fuel]
+consumption_factor = 0.065 # 6,5 L / 100km
+price = 1.9 # € / L
+shared_with_passengers = true # If true, price is split between all persons in the car; otherwise, only the driver pays.
+
+[mode_availability]
+no_solo_modes_for_joint_tours = true
+
+[mode_availability.bicycle]
+# no max distance
+requires_bicycle = false
+
+[mode_availability.car_driver]
+min_age = 18
+requires_car = true
+requires_driving_license = true
+
+[mode_availability.car_passenger]
+requires_car = false
+
+[mode_choice]
+model = "Logit" # put a multinomial logit
+modes = ["car_driver", "car_passenger", "public_transit", "bicycle", "walking"]
+
+[mode_choice_estimation]
+reference_mode = "car_driver"
+
+[modes]
+[modes.bicyle]
+snap_speed = 12
+speed = 15
+
+[modes.bicyle.distance]
+type = "pedestrian"
+with_snap = true
+
+[modes.walking]
+speed = 4.5
+[modes.walking.distance]
+with_snap = true
+type = "pedestrian"
+
+[vehicle_types]
+[vehicle_types.car]
+headway = 9
+pce = 1
+ridesharing_passenger_count = 1.2
+
+# [vehicle_types.truck] No truck
+
+
+# Location of simulation
+[simulation_area]
+osm_admin_level = 6
+osm_name = ["Alpes-Maritimes"]
+simulation_area.buffer = 15000
+
+[osm_road_import]
+highways = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+  "primary",
+  "primary_link",
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  "living_street",
+  "unclassified",
+  "residential",
+  "living_street",
+]
+
+
+[road_network]
+ensure_connected = true
+# ensure_primary_connected = true # Everything is primary in our simulation (note that primary in pymetropolis != primary in osm). In case of computing power problems, we can change that.
+forbidden_types = [
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+]
+
+[road_network.default_lanes]
+[road_network.default_lanes.urban]
+motorway = 2
+road = 1
+[road_network.default_lanes.rural]
+motorway = 2
+road = 1
+
+[road_network.default_speed_limit]
+[road_network.default_speed_limit.urban]
+motorway = 110
+road = 50
+[road_network.default_speed_limit.rural]
+motorway = 110
+road = 80
+
+
+[osm_pedestrian_import] # this includes bikes
+highways = [
+  "tertiary",
+  "tertiary_link",
+  "living_street",
+  "unclassified",
+  "residential",
+  "living_street",
+  "road",
+  "pedestrian", # can be of type area instead of linestring
+  "track",
+  "footway", # can be of type area instead of linestring
+ # "steps", # Not adequate for bikes and people with moving disabilities
+  "path",
+  "cycleway" # Not fantastic for pedestrian but still ok
+]
+
+[pedestrian_network]
+ensure_connected = false # Decided not because of the many islands of cities --> check what the islands are like before changing TODO
+output_path = false
+
+
+[osm_urban_areas] # to classify road edges as urban or not (has consequence on guessing unknown speed limits)
+urban_landuse = [
+  "commercial",
+  "construction",
+  "education",
+  "industrial",
+  "residential",
+  "retail",
+  "village_green",
+  "recreation_ground",
+  "garages",
+  "religious",
+]
+buffer = 50
+
+
+[plots]
+# please don’t add the latex keyword, or i will have to run in toolbox, which i don’t want to.
+format = "png"
+
+
+
+# what are calibration parameters ? TODO
+
+[gtfs]
+date = 2026-12-08
+files = "../data/gtfs/merge_output/nice_area.zip"
+
+[zones]
+france = true # to import default zoning from IGN for post-analysis
