@@ -415,9 +415,9 @@ def merge(
         # headsign, sequence of stop names and times), claimed by the first
         # feed in FEEDS order. Catches physical duplicates that the journey
         # key misses (same run, different ids).
-        claimed_signatures: dict[tuple, str] = {}
+        claimed_signatures: dict[tuple[str | None, str, tuple[str, ...], tuple[tuple[str | None, str, str], ...]], str] = {}
 
-        stats: list[tuple[str, int, int, int, int, int, int]] = []
+        stats: list[tuple[str, int, int, int, int, int]] = []
         for spec in FEEDS:
             with zipfile.ZipFile(input_dir / spec.zip_name) as zf:
                 standard = {n.split("/")[-1] for n in zf.namelist() if n.endswith(".txt")}
@@ -456,7 +456,7 @@ def merge(
                         if not kept_mode or is_demand_route(row[short_index], row[long_index]):
                             dropped_mode_routes.add(route_id)
 
-                trip_sequences: dict[str, tuple] = {}
+                trip_sequences: dict[str, tuple[tuple[str | None, str, str], ...]] = {}
                 stop_times_table = feed_tables["stop_times.txt"]
                 if stop_times_table is not None:
                     st_header, st_rows = stop_times_table
